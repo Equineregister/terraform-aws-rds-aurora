@@ -1,6 +1,6 @@
-# Autoscaling Example
+# AWS RDS Multi-AZ Example
 
-Configuration in this directory creates an Aurora cluster with autoscaling enabled.
+Configuration in this directory creates a PostgreSQL RDS Multi-AZ cluster. This is *NOT* using the Aurora engine. See more details [here](https://aws.amazon.com/blogs/aws/amazon-rds-multi-az-db-cluster/)
 
 ## Usage
 
@@ -33,7 +33,6 @@ Note that this example may create resources which cost money. Run `terraform des
 | Name | Source | Version |
 |------|--------|---------|
 | <a name="module_aurora"></a> [aurora](#module\_aurora) | ../../ | n/a |
-| <a name="module_disabled_aurora"></a> [disabled\_aurora](#module\_disabled\_aurora) | ../../ | n/a |
 | <a name="module_vpc"></a> [vpc](#module\_vpc) | terraform-aws-modules/vpc/aws | ~> 5.0 |
 
 ## Resources
@@ -67,6 +66,7 @@ No inputs.
 | <a name="output_db_cluster_cloudwatch_log_groups"></a> [db\_cluster\_cloudwatch\_log\_groups](#output\_db\_cluster\_cloudwatch\_log\_groups) | Map of CloudWatch log groups created and their attributes |
 | <a name="output_db_cluster_parameter_group_arn"></a> [db\_cluster\_parameter\_group\_arn](#output\_db\_cluster\_parameter\_group\_arn) | The ARN of the DB cluster parameter group created |
 | <a name="output_db_cluster_parameter_group_id"></a> [db\_cluster\_parameter\_group\_id](#output\_db\_cluster\_parameter\_group\_id) | The ID of the DB cluster parameter group created |
+| <a name="output_db_cluster_secretsmanager_secret_rotation_enabled"></a> [db\_cluster\_secretsmanager\_secret\_rotation\_enabled](#output\_db\_cluster\_secretsmanager\_secret\_rotation\_enabled) | Specifies whether automatic rotation is enabled for the secret |
 | <a name="output_db_parameter_group_arn"></a> [db\_parameter\_group\_arn](#output\_db\_parameter\_group\_arn) | The ARN of the DB parameter group created |
 | <a name="output_db_parameter_group_id"></a> [db\_parameter\_group\_id](#output\_db\_parameter\_group\_id) | The ID of the DB parameter group created |
 | <a name="output_db_subnet_group_name"></a> [db\_subnet\_group\_name](#output\_db\_subnet\_group\_name) | The db subnet group name |

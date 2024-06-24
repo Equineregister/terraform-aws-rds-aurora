@@ -2,13 +2,19 @@ provider "aws" {
   region = local.region
 }
 
+data "aws_availability_zones" "available" {}
+
 locals {
-  name   = "example-${replace(basename(path.cwd), "_", "-")}"
+  name   = "ex-${basename(path.cwd)}"
   region = "eu-west-1"
 
+  vpc_cidr = "10.0.0.0/16"
+  azs      = slice(data.aws_availability_zones.available.names, 0, 3)
+
   tags = {
-    Owner       = "user"
-    Environment = "dev"
+    Example    = local.name
+    GithubRepo = "terraform-aws-rds-aurora"
+    GithubOrg  = "terraform-aws-modules"
   }
 }
 
@@ -19,13 +25,16 @@ locals {
 module "aurora" {
   source = "../../"
 
-  name           = local.name
-  engine         = "aurora-postgresql"
-  engine_version = "11.12"
+  name            = local.name
+  engine          = "aurora-postgresql"
+  engine_version  = "14.7"
+  master_username = "root"
+  storage_type    = "aurora-iopt1"
   instances = {
     1 = {
-      instance_class      = "db.r5.2xlarge"
-      publicly_accessible = true
+      instance_class          = "db.r5.2xlarge"
+      publicly_accessible     = true
+      db_parameter_group_name = "default.aurora-postgresql14"
     }
     2 = {
       identifier     = "static-member-1"
@@ -53,28 +62,24 @@ module "aurora" {
     }
   }
 
-  vpc_id                 = module.vpc.vpc_id
-  db_subnet_group_name   = module.vpc.database_subnet_group_name
-  create_db_subnet_group = false
-  create_security_group  = true
-  allowed_cidr_blocks    = module.vpc.private_subnets_cidr_blocks
-  security_group_egress_rules = {
-    to_cidrs = {
+  vpc_id               = module.vpc.vpc_id
+  db_subnet_group_name = module.vpc.database_subnet_group_name
+  security_group_rules = {
+    vpc_ingress = {
+      cidr_blocks = module.vpc.private_subnets_cidr_blocks
+    }
+    egress_example = {
       cidr_blocks = ["10.33.0.0/28"]
       description = "Egress to corporate printer closet"
     }
   }
-
-  iam_database_authentication_enabled = true
-  master_password                     = random_password.master.result
-  create_random_password              = false
 
   apply_immediately   = true
   skip_final_snapshot = true
 
   create_db_cluster_parameter_group      = true
   db_cluster_parameter_group_name        = local.name
-  db_cluster_parameter_group_family      = "aurora-postgresql11"
+  db_cluster_parameter_group_family      = "aurora-postgresql14"
   db_cluster_parameter_group_description = "${local.name} example cluster parameter group"
   db_cluster_parameter_group_parameters = [
     {
@@ -90,7 +95,7 @@ module "aurora" {
 
   create_db_parameter_group      = true
   db_parameter_group_name        = local.name
-  db_parameter_group_family      = "aurora-postgresql11"
+  db_parameter_group_family      = "aurora-postgresql14"
   db_parameter_group_description = "${local.name} example DB parameter group"
   db_parameter_group_parameters = [
     {
@@ -101,6 +106,11 @@ module "aurora" {
   ]
 
   enabled_cloudwatch_logs_exports = ["postgresql"]
+  create_cloudwatch_log_group     = true
+
+  create_db_cluster_activity_stream     = true
+  db_cluster_activity_stream_kms_key_id = module.kms.key_id
+  db_cluster_activity_stream_mode       = "async"
 
   tags = local.tags
 }
@@ -109,24 +119,32 @@ module "aurora" {
 # Supporting Resources
 ################################################################################
 
-resource "random_password" "master" {
-  length = 10
-}
-
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 3.0"
+  version = "~> 5.0"
 
   name = local.name
-  cidr = "10.99.0.0/18"
+  cidr = local.vpc_cidr
 
-  enable_dns_support   = true
-  enable_dns_hostnames = true
+  azs              = local.azs
+  public_subnets   = [for k, v in local.azs : cidrsubnet(local.vpc_cidr, 8, k)]
+  private_subnets  = [for k, v in local.azs : cidrsubnet(local.vpc_cidr, 8, k + 3)]
+  database_subnets = [for k, v in local.azs : cidrsubnet(local.vpc_cidr, 8, k + 6)]
 
-  azs              = ["${local.region}a", "${local.region}b", "${local.region}c"]
-  public_subnets   = ["10.99.0.0/24", "10.99.1.0/24", "10.99.2.0/24"]
-  private_subnets  = ["10.99.3.0/24", "10.99.4.0/24", "10.99.5.0/24"]
-  database_subnets = ["10.99.7.0/24", "10.99.8.0/24", "10.99.9.0/24"]
+  tags = local.tags
+}
+
+module "kms" {
+  source  = "terraform-aws-modules/kms/aws"
+  version = "~> 2.0"
+
+  deletion_window_in_days = 7
+  description             = "KMS key for ${local.name} cluster activity stream."
+  enable_key_rotation     = true
+  is_enabled              = true
+  key_usage               = "ENCRYPT_DECRYPT"
+
+  aliases = [local.name]
 
   tags = local.tags
 }
